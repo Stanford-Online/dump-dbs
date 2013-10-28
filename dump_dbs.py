@@ -2,10 +2,11 @@
 
 import sys
 import subprocess
-import yaml
 import datetime
-import ordered_yaml
 from collections import OrderedDict
+
+import yaml
+import ordered_yaml
 
 myname = sys.argv[0]
 
@@ -20,6 +21,7 @@ def mongodump(config, db):
         dbname:
             use: mongodump
             host: dbname.dbhoster.com
+            port: 27017
             user: root
             password: redacted
             db: importantstuff
@@ -58,6 +60,7 @@ def mysqldump(config, db):
         dbname:
             use: mysqldump
             host: dbname.dbhoster.com
+            port: 3306
             user: root
             password: redacted
             db: importantstuff
@@ -82,11 +85,11 @@ def mysqldump(config, db):
     if 'password' not in config[db]:
         error(db + ": \"password\" required, skipping")
         return
-    cmd.append("-p" + config[db]['password'])
+    cmd.append("-p" + config[db]['password'])  # not space separated
     if 'db' not in config[db]:         # db parameter must come last
-        error(db + ": \"db\" key required, skipping")
-        return
-    cmd.append(config[db]['db'])
+        cmd.append(db)
+    else:
+        cmd.append(config[db]['db'])
     with open(target_name, "w") as outfile:
         subprocess.call(cmd, stdout=outfile)
 
@@ -106,15 +109,13 @@ def compress(config, db, target_name):
         info("removing " + target_name)
         cmd = ["rm", "-r", target_name]
         subprocess.call(cmd)
-
     elif fmt in [".gz", "gz", "compress", "compressed", "gzip", "gzipped"]:
         info("compressing " + target_name)
         cmd = ["gzip", "-r", "-q", target_name]
         subprocess.call(cmd)
-
     else:
         error(db + ": invalid \"compress\" setting, should be tarball or compress")
-
+    return
 
 def rotate(config, db):
     keep = config[db].get("keepdays", None)
@@ -131,6 +132,7 @@ def make_targetname(config, db):
     name = templ % { 
             "today": datetime.datetime.now().strftime("%Y%m%d"), 
             "dbname": db, 
+            "name": db, 
             }
     return name
 
@@ -148,7 +150,6 @@ def main():
     config = yaml.load(config_file, Loader=ordered_yaml.OrderedDictYAMLLoader)
 
     for db in config:
-        print db
         try:
             # look up the local func named in method. We'll use that worker func.
             methodfunc = globals()[config[db]["use"]]
