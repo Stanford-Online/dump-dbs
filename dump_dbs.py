@@ -88,7 +88,6 @@ def mysqldump(config, db):
         return
     cmd.append(config[db]['db'])
     with open(target_name, "w") as outfile:
-        info(" ".join(cmd))
         subprocess.call(cmd, stdout=outfile)
 
     compress(config, db, target_name)
@@ -110,7 +109,7 @@ def compress(config, db, target_name):
 
     elif fmt in [".gz", "gz", "compress", "compressed", "gzip", "gzipped"]:
         info("compressing " + target_name)
-        cmd = ["gzip", "-q", target_name]
+        cmd = ["gzip", "-r", "-q", target_name]
         subprocess.call(cmd)
 
     else:
