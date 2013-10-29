@@ -29,7 +29,6 @@ def mongodump(config, db):
             db: importantstuff
             collection: stuff
             format: tarball
-            keepdays: 7
     """
     target_name = make_targetname(config, db)
     info("dumping \"" + db + "\" to \"" + target_name + "\"")
@@ -52,8 +51,7 @@ def mongodump(config, db):
     cmd.append(target_name)
     subprocess.call(cmd)
 
-    compress(config, db, target_name)
-    rotate(config, db)
+    compress(config[db], target_name)
 
 
 def mysqldump(config, db):
@@ -66,8 +64,10 @@ def mysqldump(config, db):
             user: root
             password: redacted
             db: importantstuff
+            sed:
+            - s/class.stanford.edu/localhost:8000/g
+            - s/test.class.stanford.edu/localhost:8000/g
             format: tarball
-            keepdays: 7
     """
     target_name = make_targetname(config, db)
     info("dumping \"" + db + "\" to \"" + target_name + "\"")
@@ -95,14 +95,20 @@ def mysqldump(config, db):
     with open(target_name, "w") as outfile:
         subprocess.call(cmd, stdout=outfile)
 
-    compress(config, db, target_name)
-    rotate(config, db)
+    sed(config[db], target_name)
+    compress(config[db], target_name)
 
 
 ## Helper Functions
 
-def compress(config, db, target_name):
-    fmt = config[db].get("format", None)
+def sed(dbconfig, target_name):
+    for sedcmd in dbconfig.get('sed', []):
+        info("cleaning " + target_name + "with \"" + sedcmd + "\"")
+        cmd = ['sed', '-i', '-e', sedcmd, target_name]
+        subprocess.call(cmd)
+
+def compress(dbconfig, target_name):
+    fmt = dbconfig.get("format", None)
     if fmt in ["tarball", ".tar.gz", "tar.gz"]:
         info("zipping and compressing " + target_name)
         cmd = ["tar", "zcvf", target_name + ".tar.gz", target_name]
@@ -116,19 +122,9 @@ def compress(config, db, target_name):
         cmd = ["gzip", "-r", "-q", target_name]
         subprocess.call(cmd)
     else:
-        error(db + ": invalid \"compress\" setting, should be tarball or compress")
+        error("invalid \"compress\" setting, should be tarball or compress, " + target_name)
     return
 
-def rotate(config, db):
-    keep = config[db].get("keepdays", None)
-    if keep is None:
-        return
-    keep_days = int(keep)
-    if keep_days < 1 or keep_days > 100:
-        error("invalid \"keepdays\" setting, skipping rotation")
-        return
-    # TODO: rotate
-      
 def make_targetname(config, db):
     templ = config[db].get("name", "%(dbname)s-%(today)s")
     name = templ % { 
@@ -157,7 +153,7 @@ def main():
         os.chdir(DEFAULT_TARGET_DIR)
 
     for db in config:
-        if type(config[db]) is not dict:
+        if type(config[db]) is str:
             continue
         try:
             # look up the local func named in method. We'll use that worker func.
