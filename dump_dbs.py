@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import os
 import subprocess
 import datetime
 from collections import OrderedDict
@@ -10,7 +11,8 @@ import ordered_yaml
 
 myname = sys.argv[0]
 
-CONFIG_FILENAME = "databases.yml"
+CONFIG_FILENAME = "config.yml"
+DEFAULT_TARGET_DIR = "/data/dump"
 
 
 ## Worker Functions
@@ -149,7 +151,14 @@ def main():
     config_file = open(CONFIG_FILENAME, "r")
     config = yaml.load(config_file, Loader=ordered_yaml.OrderedDictYAMLLoader)
 
+    if "target_dir" in config:
+        os.chdir(config["target_dir"])
+    else:
+        os.chdir(DEFAULT_TARGET_DIR)
+
     for db in config:
+        if type(config[db]) is not dict:
+            continue
         try:
             # look up the local func named in method. We'll use that worker func.
             methodfunc = globals()[config[db]["use"]]
