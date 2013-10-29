@@ -53,7 +53,6 @@ def mongodump(config, db):
 
     compress(config[db], target_name)
 
-
 def mysqldump(config, db):
     """
     Drive the mysql command from a stanza that looks like this:
@@ -65,8 +64,8 @@ def mysqldump(config, db):
             password: redacted
             db: importantstuff
             sed:
-            - s/class.stanford.edu/localhost:8000/g
-            - s/test.class.stanford.edu/localhost:8000/g
+                - s/test.class.stanford.edu/localhost:8000/g
+                - s/class.stanford.edu/localhost:8000/g
             format: tarball
     """
     target_name = make_targetname(config, db)
@@ -83,15 +82,9 @@ def mysqldump(config, db):
             setting = str(config[db][setting_name])
             if len(setting):
                 cmd.append(setting)
-    cmd.append("--lock-tables=false")  # so R/O account will work
-    if 'password' not in config[db]:
-        error(db + ": \"password\" required, skipping")
-        return
-    cmd.append("-p" + config[db]['password'])  # not space separated
-    if 'db' not in config[db]:         # db parameter must come last
-        cmd.append(db)
-    else:
-        cmd.append(config[db]['db'])
+    cmd.append("--lock-tables=false")                  # for R/O account
+    cmd.append("-p" + config[db].get('password', ""))  # not space separated
+    cmd.append(config[db].get('db', db))               # db param is last
     with open(target_name, "w") as outfile:
         subprocess.call(cmd, stdout=outfile)
 
