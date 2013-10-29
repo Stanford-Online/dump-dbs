@@ -1,0 +1,70 @@
+# Configuration file for the dump_dbs.py utility.  
+---
+target_dir: /data/dump
+
+modulestore:
+    use: mongodump
+    host: stanford-mongodb.hostingco.com
+    user: edxapp
+    password: redacted
+    db: dbname
+    collection: collectionname
+    format: tarball
+
+cms:
+    use: mongodump
+    host: stanford-mongodb.hostingco.com
+    user: edxapp
+    password: redacted
+    db: dbname
+    format: tarball
+    # no coloection limit = all
+
+edxapp:
+    use: mysqldump
+    name: edxapp-%(today)s.sql
+    host: edx-prod-ro.redacted.us-west-1.rds.amazonaws.com
+    db: edxprod
+    user: readonly
+    password: redacted
+    format: compress
+
+forum:
+    use: mongodump
+    host: redacted
+    port: 10004
+    user: heroku
+    password: redacted
+    db: redacted
+    format: tarball
+    
+ora:
+    use: mysqldump
+    name: ora-%(today)s.sql
+    host: prod-xqueue-readonly.redacted.us-west-1.rds.amazonaws.com
+    db: ora
+    user: xqueue
+    password: redacted
+    format: compress
+
+xqueue:
+    use: mysqldump
+    name: xqueue-%(today)s.sql
+    host: prod-xqueue-readonly.redacted.us-west-1.rds.amazonaws.com
+    db: xqueue
+    user: xqueue
+    password: redacted
+    sed:
+        - s/test.class.stanford.edu/localhost:8000/g
+        - s/class.stanford.edu/localhost:8000/g
+    format: compress
+
+xqueue-raw:
+    use: mysqldump
+    name: xqueue-raw-%(today)s.sql
+    host: prod-xqueue-readonly.redacted.us-west-1.rds.amazonaws.com
+    db: xqueue
+    user: xqueue
+    password: redacted
+    format: compress
+
