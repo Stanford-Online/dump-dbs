@@ -30,7 +30,7 @@ def mongodump(config, db):
             collection: stuff
             format: tarball
     """
-    target_name = make_targetname(config, db)
+    (target_name, link_from_name, link_to_name) = make_names(config, db)
     info("dumping \"" + db + "\" to \"" + target_name + "\"")
     option_mapping = OrderedDict([
             ("-h", "host"),
@@ -50,8 +50,8 @@ def mongodump(config, db):
     cmd.append("-o")
     cmd.append(target_name)
     subprocess.call(cmd)
-
     compress(config[db], target_name)
+    makelink(link_to_name, link_from_name)
 
 def mysqldump(config, db):
     """
@@ -68,7 +68,7 @@ def mysqldump(config, db):
                 - s/class.stanford.edu/localhost:8000/g
             format: tarball
     """
-    target_name = make_targetname(config, db)
+    (target_name, link_from_name, link_to_name) = make_names(config, db)
     info("dumping \"" + db + "\" to \"" + target_name + "\"")
     option_mapping = OrderedDict([
             ("-h", "host"),
@@ -90,6 +90,7 @@ def mysqldump(config, db):
 
     sed(config[db], target_name)
     compress(config[db], target_name)
+    makelink(link_to_name, link_from_name)
 
 
 ## Helper Functions
@@ -118,14 +119,28 @@ def compress(dbconfig, target_name):
         error("invalid \"compress\" setting, should be tarball or compress, " + target_name)
     return
 
-def make_targetname(config, db):
-    templ = config[db].get("name", "%(dbname)s-%(today)s")
-    name = templ % { 
-            "today": datetime.datetime.now().strftime("%Y%m%d"), 
-            "dbname": db, 
-            "name": db, 
-            }
-    return name
+def makelink(targ, link):
+    try:
+        os.symlink(targ, link)
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            os.remove(link)
+            os.symlink(targ, link)
+
+def make_names(config, db):
+    """
+    Return a tuple: the filename that we'll want to generate, with
+    today's date, and the symlink from/to that we'll want to create.
+    """
+    def render(templ):
+        return templ % {
+                "today": datetime.datetime.now().strftime("%Y%m%d"),
+                "dbname": db, "name": db,
+                }
+    filename = render(config[db].get("name", "%(dbname)s-%(today)s"))
+    linkfrom = render(config[db].get("link", "%(dbname)s-latest.tar.gz"))
+    linkto = render(config[db].get("name", "%(dbname)s-%(today)s.tar.gz"))
+    return (filename, linkfrom, linkto)
 
 def info(msg):
     sys.stderr.write(myname + " INFO: " + msg + "\n")
