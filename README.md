@@ -30,4 +30,6 @@ You end up with dumps that look like this
     -rw-rw-r-- 1 sef sef 9374341 Jan  4 09:00 modulestore-20140104.tar.gz
     lrwxrwxrwx 1 sef sef      27 Jan  4 09:00 modulestore-latest.tar.gz -> modulestore-20140104.tar.gz
 
-
+There is an example configuration file, ```configuration-example.yml```,
+that shows how this script is being used at Stanford, net of the
+secure configuration info of course.  See
