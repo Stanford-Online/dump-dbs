@@ -2,6 +2,8 @@
 
 import sys
 import os
+import errno
+import re
 import subprocess
 import datetime
 from collections import OrderedDict
@@ -30,7 +32,7 @@ def mongodump(config, db):
             collection: stuff
             format: tarball
     """
-    target_name = make_targetname(config, db)
+    target_name = make_target_name(config, db)
     info("dumping \"" + db + "\" to \"" + target_name + "\"")
     option_mapping = OrderedDict([
             ("-h", "host"),
@@ -51,7 +53,9 @@ def mongodump(config, db):
     cmd.append(target_name)
     subprocess.call(cmd)
 
-    compress(config[db], target_name)
+    compressed_name = compress(config[db], target_name)
+    make_symlink(config[db], compressed_name)
+
 
 def mysqldump(config, db):
     """
@@ -68,7 +72,7 @@ def mysqldump(config, db):
                 - s/class.stanford.edu/localhost:8000/g
             format: tarball
     """
-    target_name = make_targetname(config, db)
+    target_name = make_target_name(config, db)
     info("dumping \"" + db + "\" to \"" + target_name + "\"")
     option_mapping = OrderedDict([
             ("-h", "host"),
@@ -88,44 +92,67 @@ def mysqldump(config, db):
     with open(target_name, "w") as outfile:
         subprocess.call(cmd, stdout=outfile)
 
-    sed(config[db], target_name)
-    compress(config[db], target_name)
+    filter_with_sed(config[db], target_name)
+    compressed_name = compress(config[db], target_name)
+    make_symlink(config[db], compressed_name)
 
 
 ## Helper Functions
 
-def sed(dbconfig, target_name):
+def filter_with_sed(dbconfig, target_name):
     for sedcmd in dbconfig.get('sed', []):
         info("cleaning " + target_name + "with \"" + sedcmd + "\"")
         cmd = ['sed', '-i', '-e', sedcmd, target_name]
         subprocess.call(cmd)
 
 def compress(dbconfig, target_name):
+    """
+    Compress the target, method depends on the "format" parameter.  Returns
+    the resulting target filename, useful for symlinking to.
+    """
     fmt = dbconfig.get("format", None)
     if fmt in ["tarball", ".tar.gz", "tar.gz"]:
         info("zipping and compressing " + target_name)
-        cmd = ["tar", "zcvf", target_name + ".tar.gz", target_name]
+        output_name = target_name + ".tar.gz"
+        cmd = ["tar", "zcvf", output_name, target_name]
         subprocess.call(cmd)
-
         info("removing " + target_name)
         cmd = ["rm", "-r", target_name]
         subprocess.call(cmd)
     elif fmt in [".gz", "gz", "compress", "compressed", "gzip", "gzipped"]:
         info("compressing " + target_name)
         cmd = ["gzip", "-r", "-q", target_name]
+        output_name = target_name + ".gz"
         subprocess.call(cmd)
     else:
         error("invalid \"compress\" setting, should be tarball or compress, " + target_name)
-    return
+        output_name = ""
+    return output_name
 
-def make_targetname(config, db):
+def make_symlink(dbconfig, targ):
+    """Create a symlink unless explicitly configured not to."""
+    if "latest" in dbconfig and not dbconfig["latest"]:
+        return
+    link = re.sub(r'[0-9]+', 'latest', targ)
+    try:
+        os.symlink(targ, link)
+        info("create link " + link + " --> " + targ)
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            os.remove(link)
+            os.symlink(targ, link)
+            info("move link " + link + " --> " + targ)
+
+def make_target_name(config, db):
+    """
+    Return a tuple: the filename that we'll want to generate, with
+    today's date, and the symlink from/to that we'll want to create.
+    """
     templ = config[db].get("name", "%(dbname)s-%(today)s")
-    name = templ % { 
-            "today": datetime.datetime.now().strftime("%Y%m%d"), 
-            "dbname": db, 
-            "name": db, 
+    return templ % {
+            "today": datetime.datetime.now().strftime("%Y%m%d"),
+            "dbname": db, "name": db,
             }
-    return name
 
 def info(msg):
     sys.stderr.write(myname + " INFO: " + msg + "\n")
