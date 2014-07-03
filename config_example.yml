@@ -68,3 +68,11 @@ xqueue-raw:
     password: redacted
     format: compress
 
+large_files:
+    host: stanford-edx-prod.redacted.com
+    port: 27017
+    user: edxapp
+    password: redacted
+    db: redacted
+    size: 10000000
+
