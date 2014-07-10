@@ -1,1 +1,5 @@
 pyyaml
+pymongo
+mysql-python
+pandas
+openpyxl==1.6.1
