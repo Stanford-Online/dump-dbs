@@ -1,4 +1,8 @@
 config.yml
+forum_user_audit_config.yaml
+
+missing.csv
+different.csv
 
 *.py[cod]
 

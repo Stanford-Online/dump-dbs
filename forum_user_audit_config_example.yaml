@@ -1,0 +1,14 @@
+---
+lms:
+    host: localhost
+    port: 3306
+    db: edxapp
+    user: root
+    passwd: ''
+  
+forum:
+    host: localhost
+    user: username
+    db: forum
+    port: 27017
+    passwd: password
