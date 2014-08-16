@@ -19,6 +19,8 @@
 #        host: localhost
 #        db: forum
 #        port: 27017
+#        user: username
+#        passwd: password
 #
 # If it works it produces output that looks like this:
 #
