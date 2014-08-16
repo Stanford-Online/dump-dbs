@@ -33,15 +33,14 @@ def query_mongo(config):
                        "{$match: {length: {$gt: %s }}},"
                        "{$project: {filename:1,length:1, _id:0}},"
                        "{$sort: {length:-1}}"
-                       "]).toArray()") \
-        % config['size']
+                       "])") % config['size']
     cmd_template = ("echo '{query}' "
                     "| mongo --quiet {host}:{port}/{db} "
                     "-u {user} -p {password}")
     cmd = [cmd_template.format(**config)]
     output = subprocess.check_output(cmd, shell=True)
     resultlist = json.loads(output)
-    return resultlist
+    return resultlist['result']
 
 
 def email_report(body, result_count, sender):
@@ -83,7 +82,7 @@ def main():
         report += "{}: {}\n".format(big['filename'], big['length'])
     if len(recipients):
         info("found {} files".format(len(bigs)))
-        info("sending mail to {}".format(recipient))
+        info("sending mail to {}".format(",".join(recipients)))
         email_report(report, len(bigs), config['large_files']['sender'])
     else:
         sys.stdout.write(report)
