@@ -76,14 +76,14 @@ def main():
     bigs = query_mongo(config['large_files'])
 
     sizeMB = int(config['large_files']['size']) / 1e6
-    report = "There are {} large files in GridFS over {} MB.\n\n" \
+    report = u"There are {} large files in GridFS over {} MB.\n\n" \
         .format(len(bigs), sizeMB)
     for big in bigs:
-        report += "{}: {}\n".format(big['filename'], big['length'])
+        report += u"{}: {}\n".format(big['filename'], big['length'])
     if len(recipients):
         info("found {} files".format(len(bigs)))
         info("sending mail to {}".format(",".join(recipients)))
-        email_report(report, len(bigs), config['large_files']['sender'])
+        email_report(report.encode('utf-8'), len(bigs), config['large_files']['sender'])
     else:
         sys.stdout.write(report)
 
