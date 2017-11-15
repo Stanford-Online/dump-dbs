@@ -7,6 +7,7 @@ import re
 import subprocess
 import datetime
 from collections import OrderedDict
+import MySQLdb
 
 import yaml
 import ordered_yaml
@@ -88,6 +89,7 @@ def mysqldump(config, db):
                 cmd.append(setting)
     cmd.append("--lock-tables=false")                  # for R/O account
     cmd.append("-p" + config[db].get('password', ""))  # not space separated
+    cmd.append('--ignore-table=' + config[db].get('db', db) + '.courseware_studentmodulehistory') # Ignore csmh since it is now static
     cmd.append(config[db].get('db', db))               # db param is last
     with open(target_name, "w") as outfile:
         subprocess.call(cmd, stdout=outfile)
@@ -97,13 +99,111 @@ def mysqldump(config, db):
     make_symlink(config[db], compressed_name)
 
 
+def mysqlcsmhedump(config, db):
+    """
+    Dumps the contents of the CSMHE table in increments.
+
+    Drive the mysqlcsmhe command from a stanza that looks like this:
+        dbname:
+            use mysqlcsmhedump
+            host: dbname.dbhoster.com
+            port: 3306
+            user: root
+            password: redacted
+            db: importantstuff
+            sed:
+                - s/test.class.stanford.edu/localhost:8000/g
+                - s/class.stanford.edu/localhost:8000/g
+            format: tarball
+            csmhe_id_file: max_id_file
+    """
+    # Read previous max(id) from file
+    info("Reading previous max(id) from file")
+    id_file = config["target_dir"] + "/csmhe/" + config[db].get("csmhe_id_file")
+    old_max_id = read_id_from_file(id_file)
+
+    # Read current max(id) from db
+    info("Reading max(id) from db")
+    dbConnection = MySQLdb.connect(
+        str(config[db]['host']),
+        str(config[db]['user']),
+        str(config[db]['password']),
+        str(config[db]['db']),
+    )
+    cursor = dbConnection.cursor()
+    cursor.execute('select max(id) from coursewarehistoryextended_studentmodulehistoryextended')
+    data = cursor.fetchone()
+    cursor.close()
+    dbConnection.close()
+    new_max_id = str(data[0])
+
+    # Dump rows from old to new ids.
+    target_name = config["target_dir"] + '/csmhe/' + make_target_name(config, db)
+    info("Dumping \"" + db + "\" to \"" + target_name + "\"")
+    mysqldump_cmd = ["mysqldump"]
+    option_mapping = OrderedDict([
+        ("-h", "host"),
+        ("-P", "port"),
+        ("-u", "user"),
+    ])
+    add_options(config, db, mysqldump_cmd, option_mapping, old_max_id, new_max_id)
+
+    with open(target_name, "w") as outfile:
+        subprocess.call(mysqldump_cmd, stdout=outfile)
+
+    filter_with_sed(config[db], target_name)
+    compressed_name = compress(config[db], target_name)
+
+    # Write new max(id) to file
+    info("Writing max(id) to file")
+    write_id_to_file(id_file, new_max_id)
+
+
 ## Helper Functions
+
+def read_id_from_file(file):
+    """
+    Read the last written max(id) from the tracking file.
+    """
+    input = open(file, 'r')
+    id = input.readline().strip()
+    input.close()
+    return id
+
+
+def write_id_to_file(file, id):
+    """
+    Write the new max(id) to the tracking file.
+    """
+    output = open(file, 'w')
+    output.write(id)
+    output.close()
+
+
+def add_options(config, db, cmd, option_mapping, min_id, max_id):
+    """
+    Add the base options to the command
+    """
+    for (option, setting_name) in option_mapping.iteritems():
+        if setting_name in config[db]:
+            cmd.append(option)
+            setting = str(config[db][setting_name])
+            if len(setting):
+                cmd.append(setting)
+
+    cmd.append("--where=id >" + min_id + " and id <=" + max_id)  # where clause
+    cmd.append("--lock-tables=false")                            # for R/O account
+    cmd.append("-p" + config[db].get('password', ""))            # not space separated
+    cmd.append(config[db].get('db', db))                         # db param
+    cmd.append("coursewarehistoryextended_studentmodulehistoryextended") # only export this table
+
 
 def filter_with_sed(dbconfig, target_name):
     for sedcmd in dbconfig.get('sed', []):
         info("cleaning " + target_name + "with \"" + sedcmd + "\"")
         cmd = ['sed', '-i', '-e', sedcmd, target_name]
         subprocess.call(cmd)
+
 
 def compress(dbconfig, target_name):
     """
@@ -129,6 +229,7 @@ def compress(dbconfig, target_name):
         output_name = ""
     return output_name
 
+
 def make_symlink(dbconfig, targ):
     """Create a symlink unless explicitly configured not to."""
     if "latest" in dbconfig and not dbconfig["latest"]:
@@ -143,6 +244,7 @@ def make_symlink(dbconfig, targ):
             os.symlink(targ, link)
             info("move link " + link + " --> " + targ)
 
+
 def make_target_name(config, db):
     """
     Return a tuple: the filename that we'll want to generate, with
@@ -154,8 +256,10 @@ def make_target_name(config, db):
             "dbname": db, "name": db,
             }
 
+
 def info(msg):
     sys.stderr.write(myname + " INFO: " + msg + "\n")
+
 
 def error(msg):
     sys.stderr.write(myname + " ERROR: " + msg + "\n")
@@ -185,4 +289,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
