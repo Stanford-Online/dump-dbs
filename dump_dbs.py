@@ -279,12 +279,10 @@ def main():
     for db in config:
         if type(config[db]) is str:
             continue
-        try:
-            # look up the local func named in method. We'll use that worker func.
-            methodfunc = globals()[config[db]["use"]]
-        except KeyError:
-            error(db + " has bad or missing \"use\" parameter, skipping")
+        method_name = config[db].get('use')
+        if not method_name:
             continue
+        methodfunc = globals()[method_name]
         methodfunc(config, db)
 
 if __name__ == "__main__":
